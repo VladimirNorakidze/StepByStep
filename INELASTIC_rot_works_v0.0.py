@@ -55,6 +55,7 @@ beta = 1.0e8
 N  = 13000 #число точек
 N_for_dif_case = 1.3e4
 electron_energy = np.linspace( 1.0e-4, N_for_dif_case, N) # значения энергии
+switch_vibr = 1
 
 with open("constants.py", 'w') as f:
     f.write("""import numpy as np
@@ -86,15 +87,14 @@ N_all  = p/(k*T)""" % (U))
 
 
 import sigma
-import rotational_term as rt
+import inelastic_term as it
 #import main_function as mf
 import population_N2 as pN2
 """Расчет числа молекул. Они подчиняются закону распределения Максвелла"""
 N_all  = p/(k*T) #м^-3
 
 """Поиск заселенностей основного J0=0 и возбужденных уровней"""
-g, x_J, eps_J, eps_th_ex = pN2.population_N2(B, diss_energy_N2)
-eps_th_ex = threshold_energy['rot']
+#g, x_J, eps_J, eps_th_ex = pN2.population_N2(B, diss_energy_N2)
 """Сечения возбуждения колебательных степеней"""
 eps  = np.array([0, 0.5, 1.0, 1.5, 1.98, 2.1, 2.46, 2.605, 3.0, 5.0, 7.5, 10.0, 
                  15.0, 18.0, 20.0, 22.5, 25.0, 30.0, 1e17])*(11600./T)
@@ -136,23 +136,34 @@ def search_f0(y,t):
     der_total_sigma_term = derivative(sigma.elastic,t)
     F_ex   = 0
     F_deex = 0
-#    J0     = 0
+    V_Ex   = 0
+    V_Deex = 0
     for J0 in range(pN2.N_rot_trans(B, diss_energy_N2)):
-        Ex, Deex = rt.rotational_term(t, J0, x_J, f0, f0D, func)
+        Ex, Deex = it.rotational_term(t, J0, pN2.x_J, f0, f0D, func)
         F_ex   += Ex
         F_deex += Deex
-        total_sigma          += x_J[J0] * sigma.r_excitation(t,J0) + x_J[J0+2] * sigma.r_deexcitation(t,J0) 
+        total_sigma          += pN2.x_J[J0] * sigma.r_excitation(t,J0) + pN2.x_J[J0+2] * sigma.r_deexcitation(t,J0) 
         der_sigma_ex_rot      = ( sigma.r_excitation(t,J0)   - sigma.r_excitation(t-dt/beta,J0) ) * beta/dt
         der_sigma_deex_rot    = ( sigma.r_deexcitation(t,J0) - sigma.r_deexcitation(t-dt/beta,J0) ) * beta/dt
-        der_total_sigma_term += x_J[J0] * der_sigma_ex_rot + x_J[J0+2] * der_sigma_deex_rot
-    V_Ex, V_Deex = 0, 0
+        der_total_sigma_term += pN2.x_J[J0] * der_sigma_ex_rot + pN2.x_J[J0+2] * der_sigma_deex_rot
+    if switch_vibr != 0:
+        for v in range(8):
+            for k in range(8):
+                if v != k:
+                    Ex, Deex = it.vibrational_term(t, f0, v, k, f0D, func)
+                    V_Ex    += Ex
+                    V_Deex  += Deex
+                    total_sigma          += 0.1 * sigma.v_excitation_vk(t, v, k) + 0.1 * sigma.v_deexcitation_vk(t,v,k) 
+                    der_sigma_ex_rot      = ( sigma.v_excitation_vk(t,v,k)   - sigma.v_excitation_vk(t-dt/beta,v,k) ) * beta/dt
+                    der_sigma_deex_rot    = ( sigma.v_deexcitation_vk(t,v,k) - sigma.v_deexcitation_vk(t-dt/beta,v,k) ) * beta/dt
+                    der_total_sigma_term += 0.1 * der_sigma_ex_rot + 0.1 * der_sigma_deex_rot
     total_sigma += sigma.elastic(t)
     der_total_sigma       = (1./total_sigma**2) * (total_sigma - t * der_total_sigma_term)
     A      = t*Part_Kn**2/(N_all**2*total_sigma) + (t**2)*delta*sigma.elastic(t)
     D      = delta*(derivate_term+t**2*sigma.elastic(t))
     C      = Part_Kn**2*(der_total_sigma)/(N_all**2)
     res[0] = p # df0/deps
-    res[1] = - (1./A)*(p*(D+C) + f0*(derivate_term*delta) + 0*(F_ex + F_deex) + (V_Ex + V_Deex))
+    res[1] = - (1./A)*(p*(D+C) + f0*(derivate_term*delta) + (F_ex + F_deex) + switch_vibr*(V_Ex + V_Deex))
     return res
 
 """Поиск f0"""
