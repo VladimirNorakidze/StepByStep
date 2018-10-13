@@ -138,12 +138,12 @@ def search_f0(y,t):
     F_deex = 0
 #    J0     = 0
     for J0 in range(pN2.N_rot_trans(B, diss_energy_N2)):
-        Ex, Deex = rt.rotational_term(t, J0, x_J, f0, f0D, eps_th_ex[J0], func)
+        Ex, Deex = rt.rotational_term(t, J0, x_J, f0, f0D, func)
         F_ex   += Ex
         F_deex += Deex
-        total_sigma          += x_J[J0] * sigma.r_excitation(t,J0, eps_th_ex[J0]) + x_J[J0+2] * sigma.r_deexcitation(t,J0, eps_th_ex[J0]) 
-        der_sigma_ex_rot      = ( sigma.r_excitation(t,J0, eps_th_ex[J0])   - sigma.r_excitation(t-dt/beta,J0, eps_th_ex[J0]) ) * beta/dt
-        der_sigma_deex_rot    = ( sigma.r_deexcitation(t,J0, eps_th_ex[J0]) - sigma.r_deexcitation(t-dt/beta,J0, eps_th_ex[J0]) ) * beta/dt
+        total_sigma          += x_J[J0] * sigma.r_excitation(t,J0) + x_J[J0+2] * sigma.r_deexcitation(t,J0) 
+        der_sigma_ex_rot      = ( sigma.r_excitation(t,J0)   - sigma.r_excitation(t-dt/beta,J0) ) * beta/dt
+        der_sigma_deex_rot    = ( sigma.r_deexcitation(t,J0) - sigma.r_deexcitation(t-dt/beta,J0) ) * beta/dt
         der_total_sigma_term += x_J[J0] * der_sigma_ex_rot + x_J[J0+2] * der_sigma_deex_rot
     V_Ex, V_Deex = 0, 0
     total_sigma += sigma.elastic(t)
@@ -152,7 +152,7 @@ def search_f0(y,t):
     D      = delta*(derivate_term+t**2*sigma.elastic(t))
     C      = Part_Kn**2*(der_total_sigma)/(N_all**2)
     res[0] = p # df0/deps
-    res[1] = - (1./A)*(p*(D+C) + f0*(derivate_term*delta) + (F_ex + F_deex) + (V_Ex + V_Deex))
+    res[1] = - (1./A)*(p*(D+C) + f0*(derivate_term*delta) + 0*(F_ex + F_deex) + (V_Ex + V_Deex))
     return res
 
 """Поиск f0"""
