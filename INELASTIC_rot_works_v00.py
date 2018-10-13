@@ -15,29 +15,84 @@ from scipy.misc import derivative
 import copy
 import json
 import time
-import saving_constants as sc
 
 start_time = time.time()
-U = 1. # [В]
-sc.save_constants(U)
-
-import constants as c
-import sigma
-import inelastic_term as it
-import population_N2 as pN2
 
 """Загрузка пороговых энергий неупругих переходов молекулы азота"""
 with open("threshold_energy.txt","r",encoding="utf-8") as file:
     threshold_energy = json.load(file)
-    
-N  = 13000 #число точек
-N_for_dif_case = 1.3e1
-electron_energy = np.linspace( 1.0e-4, N_for_dif_case, N) # значения энергии
-switch_vibr = 0
-dt   = electron_energy[10] - electron_energy[9] #Шаг по энергии 
+
+"""
+Constants
+"""
+e  = 1.6*10**(-19) #Кл
+m  = 9.1*10**(-31) # кг - масса электрона
+M0 = 1.67*10**(-27) #кг - масса нуклона
+k  = 1.38e-23 #Постоянная Больцмана
+c = 3.0e8 #Сскорость света (м/c)
+Q      = -1.13 #Квадрапольный момент молекулы N2 (в единиицах e*a0^2)
+alpha   = 3.13 #поляризуемость (в единицах a0^3)
+Planck_const = 1.0545718e-34 #Дж*с
+a0     = 137.*Planck_const/(m*c) #Радиус Бора (м)
+B = 2.49e-4 #Вращательная постоянная для N2 [эВ]
+diss_energy_N2 = 9.73 # [эВ]
+"""
+Parameters
+"""
+A  = 28 #Массовое число
+U  = 630. #Напряжение [В]
+r  = 0.9 #Расстояние между электродами [м]
+E  = U/r #[В/м]
+M  = A*M0 #масса ядра [кг]
+delta=2.*m/M
+p  = 1.5*133 #Давление Torr*(Па/Torr) (итоговая размерность [Па])
+T  = 873. # Температура газа [К]
+n0 = 1.0e16 #Плотность электронов [м^(-3)]
+sigma0 = np.pi*a0**2 # Площадь боровской орбиты [м^2]
+Part_Kn = np.sqrt(1./3)*e*E/( (k*T) * sigma0) #Kn=Part_Kn/(N_all*sigma*(корень из eps))
 beta = 1.0e8
+
+N  = 13000 #число точек
+N_for_dif_case = 1.3e4
+electron_energy = np.linspace( 1.0e-4, N_for_dif_case, N) # значения энергии
+switch_vibr = 1
+
+with open("constants.py", 'w') as f:
+    f.write("""import numpy as np
+e = 1.6*10**(-19)
+m = 9.1*10**(-31)
+M0 = 1.67*10**(-27)
+k = 1.38e-23
+c = 3.0e8
+Q = -1.13
+alpha = 3.13
+Planck_const = 1.0545718e-34
+a0 = 137.*Planck_const/(m*c)
+B = 2.49e-4
+diss_energy_N2 = 9.73
+A = 28
+U = %f
+r = 0.9
+E = U/r
+M = A*M0
+delta = 2.*m/M
+p = 1.5*133
+T = 873.
+n0 = 1.0e16
+sigma0 = np.pi*a0**2
+Part_Kn = np.sqrt(1./3)*e*E/( (k*T) * sigma0)
+beta = 1.0e8
+E_R = 13.61
+N_all  = p/(k*T)""" % (U))
+
+
+import sigma
+import inelastic_term as it
+#import main_function as mf
+import population_N2 as pN2
 """Расчет числа молекул. Они подчиняются закону распределения Максвелла"""
-N_all  = c.p/(c.k*c.T) #м^-3
+N_all  = p/(k*T) #м^-3
+
 
 """Функция для решения дифференцияального уравнения относительно f0:"""    
 def search_f0(y,t):
@@ -50,7 +105,7 @@ def search_f0(y,t):
     F_deex = 0
     V_Ex   = 0
     V_Deex = 0
-    for J0 in range(pN2.N_rot_trans(c.B, c.diss_energy_N2)):
+    for J0 in range(pN2.N_rot_trans(B, diss_energy_N2)):
         Ex, Deex = it.rotational_term(t, J0, pN2.x_J, f0, f0D, func)
         F_ex   += Ex
         F_deex += Deex
@@ -71,20 +126,21 @@ def search_f0(y,t):
                     der_total_sigma_term += 0.1 * der_sigma_ex_rot + 0.1 * der_sigma_deex_rot
     total_sigma += sigma.elastic(t)
     der_total_sigma       = (1./total_sigma**2) * (total_sigma - t * der_total_sigma_term)
-    A      = t*c.Part_Kn**2/(N_all**2*total_sigma) + (t**2)*c.delta*sigma.elastic(t)
-    D      = c.delta*(derivate_term+t**2*sigma.elastic(t))
-    C      = c.Part_Kn**2*(der_total_sigma)/(N_all**2)
+    A      = t*Part_Kn**2/(N_all**2*total_sigma) + (t**2)*delta*sigma.elastic(t)
+    D      = delta*(derivate_term+t**2*sigma.elastic(t))
+    C      = Part_Kn**2*(der_total_sigma)/(N_all**2)
     res[0] = p # df0/deps
-    res[1] = - (1./A)*(p*(D+C) + f0*(derivate_term*c.delta) + (F_ex + F_deex) + switch_vibr*(V_Ex + V_Deex))
+    res[1] = - (1./A)*(p*(D+C) + f0*(derivate_term*delta) + (F_ex + F_deex) + switch_vibr*(V_Ex + V_Deex))
     return res
 
 """Поиск f0"""
+dt   = electron_energy[10] - electron_energy[9] #Шаг по энергии 
 y0 = [1, 1.0e-10] #Начальные условия
 f0D  = np.zeros(N)+1 #массив значений f0
 f_check = np.zeros(N)+5
 func = interpolate.UnivariateSpline(electron_energy, f0D, s=0)
 epoch = 0
-epoch_max = 7
+epoch_max = 3
 while (epoch < epoch_max):
     f_check = copy.deepcopy(f0D) 
     sol = odeint(search_f0, y0, electron_energy, hmin = dt*1.e-100, hmax=dt*10, mxstep=10**9) #решатель ODE 
@@ -102,7 +158,7 @@ f0D   *= 1./integr
 func = interpolate.UnivariateSpline(electron_energy, f0D, s=0) 
 
 #fig = plt.figure(facecolor='white')
-plt.plot(electron_energy*c.T/11600., func(electron_energy))
+plt.plot(electron_energy*T/11600., func(electron_energy))
 #plt.plot(electron_energy,fD)
 plt.legend(('0В, без неупругих', '0В, с неупругими'))
 plt.ylabel(r"$f0$")
