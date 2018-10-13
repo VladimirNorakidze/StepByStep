@@ -13,15 +13,14 @@ from scipy.integrate import simps
 import matplotlib.pyplot as plt
 from scipy.misc import derivative
 import copy
+import json
+import time
 
-import sigma
-import rotational_term as rt
-#import main_function as mf
-import population_N2 as pN2
+start_time = time.time()
 
-from numba import vectorize
-
-vectorize(['float32(float32, float32)'], target='cuda')
+"""Загрузка пороговых энергий неупругих переходов молекулы азота"""
+with open("threshold_energy.txt","r",encoding="utf-8") as file:
+    threshold_energy = json.load(file)
 
 """
 Constants
@@ -58,37 +57,44 @@ N_for_dif_case = 1.3e4
 electron_energy = np.linspace( 1.0e-4, N_for_dif_case, N) # значения энергии
 
 with open("constants.py", 'w') as f:
-    f.write('import numpy as np \n\n\
-e = %.20f\n\
-m = %.32f\n\
-M0 = %.29f\n\
-k = %.25f\n\
-c = %f\n\
-Q = %f\n\
-alpha = %f\n\
-Planck_const = %.40f\n\
-a0 = 137.*Planck_const/(m*c)\n\
-B = %f\n\
-diss_energy_N2 = %f\n\n\
-A = %f\n\
-U = %f\n\
-r = %f\n\
-E = U/r\n\
-M = A*M0\n\
-delta = 2.*m/M\n\
-p = %f\n\
-T = %f\n\
-n0 = %f\n\
-sigma0 = np.pi*a0**2\n\
-Part_Kn = np.sqrt(1./3)*e*E/( (k*T) * sigma0)\n\
-beta = %f' %(e,m,M0,k,c,Q,alpha,Planck_const,B,diss_energy_N2,A,U,r,p,T,n0,beta))
+    f.write("""import numpy as np
+e = 1.6*10**(-19)
+m = 9.1*10**(-31)
+M0 = 1.67*10**(-27)
+k = 1.38e-23
+c = 3.0e8
+Q = -1.13
+alpha = 3.13
+Planck_const = 1.0545718e-34
+a0 = 137.*Planck_const/(m*c)
+B = 2.49e-4
+diss_energy_N2 = 9.73
+A = 28
+U = %f
+r = 0.9
+E = U/r
+M = A*M0
+delta = 2.*m/M
+p = 1.5*133
+T = 873.
+n0 = 1.0e16
+sigma0 = np.pi*a0**2
+Part_Kn = np.sqrt(1./3)*e*E/( (k*T) * sigma0)
+beta = 1.0e8
+E_R = 13.61
+N_all  = p/(k*T)""" % (U))
 
 
+import sigma
+import rotational_term as rt
+#import main_function as mf
+import population_N2 as pN2
 """Расчет числа молекул. Они подчиняются закону распределения Максвелла"""
 N_all  = p/(k*T) #м^-3
 
 """Поиск заселенностей основного J0=0 и возбужденных уровней"""
 g, x_J, eps_J, eps_th_ex = pN2.population_N2(B, diss_energy_N2)
+eps_th_ex = threshold_energy['rot']
 """Сечения возбуждения колебательных степеней"""
 eps  = np.array([0, 0.5, 1.0, 1.5, 1.98, 2.1, 2.46, 2.605, 3.0, 5.0, 7.5, 10.0, 
                  15.0, 18.0, 20.0, 22.5, 25.0, 30.0, 1e17])*(11600./T)
@@ -155,15 +161,17 @@ y0 = [1, 1.0e-10] #Начальные условия
 f0D  = np.zeros(N)+1 #массив значений f0
 f_check = np.zeros(N)+5
 func = interpolate.UnivariateSpline(electron_energy, f0D, s=0)
-z = 0
-while (z < 1):
+epoch = 0
+epoch_max = 3
+while (epoch < epoch_max):
     f_check = copy.deepcopy(f0D) 
     sol = odeint(search_f0, y0, electron_energy, hmin = dt*1.e-100, hmax=dt*10, mxstep=10**9) #решатель ODE 
     f0D = sol[:,0] #Решение уравнения     
     func = interpolate.UnivariateSpline(electron_energy, f0D, s=0)
 #    print(f0D[100]/f_check[100])
-    print(z, (np.abs((f0D[100]-f_check[100])/f0D[100])))
-    z+=1
+    print(epoch, (np.abs((f0D[np.argmax(f_check)]-f_check[np.argmax(f_check)])/f0D[np.argmax(f_check)])))
+    epoch += 1
+    
 for i in range(0,N): 
     f0D[i] *= np.sqrt(electron_energy[i])
 #Нормировка интеграла на единицу:
@@ -179,3 +187,5 @@ plt.ylabel(r"$f0$")
 plt.xlabel(r"$\epsilon$")
 plt.grid(True)
 
+working = time.time() - start_time
+print("Время работы: %.f минут и %.f секунд" % (int(working/60), working%60))

@@ -12,19 +12,19 @@ T  = 873. # Температура газа [К]
 
 level_energy = {}
 threshold_energy = {} #словарь пороговых энергий
-threshold_energy["rotational"] = []
+threshold_energy["rot"] = []
 g = np.ndarray(200) #стат веса 
 J1 = 0
-level_energy["rotational"] = []
+level_energy["rot"] = []
 
 for J in range(300):
-    level_energy["rotational"].append(B*J*(J+1)*11600./T) #Безразмерная энергия уровня J
+    level_energy["rot"].append(B*J*(J+1)*11600./T) #Безразмерная энергия уровня J
 
 for J in range(250):
-    threshold_energy["rotational"].append(level_energy["rotational"][J+2]-level_energy["rotational"][J])
+    threshold_energy["rot"].append(level_energy["rot"][J+2]-level_energy["rot"][J])
 
 """Пороговые энергии колебательных переходов"""
-threshold_energy["vibrational"] = [[1.8, 1.8, 1.8, 1.912, 2.079, 2.1, 2.299, 2.397, 2.594],
+threshold_energy["vibr"] = [[1.8, 1.8, 1.8, 1.912, 2.079, 2.1, 2.299, 2.397, 2.594],
                                   [0, 1.51, 1.51, 1.622, 1.789, 1.81, 2.009, 2.107, 2.304],
                                   [0, 0, 1.21, 1.322, 1.489, 1.51, 1.709, 1.807, 2.004], 
                                   [0, 0, 0, 1.32, 1.199, 1.22, 1.419, 1.517, 1.714],
@@ -33,9 +33,9 @@ threshold_energy["vibrational"] = [[1.8, 1.8, 1.8, 1.912, 2.079, 2.1, 2.299, 2.3
                                   [0, 0, 0, 0, 0, 0, 0.539, 0.637, 0.834], 
                                   [0, 0, 0, 0, 0, 0, 0, 0.337, 0.534], 
                                   [0, 0, 0, 0, 0, 0, 0, 0, 0.244]]
-for v in range(len(threshold_energy["vibrational"])):
-       for i in range(len(threshold_energy["vibrational"][v])):
-           threshold_energy["vibrational"][v][i] *=  11600./T 
+for v in range(len(threshold_energy["vibr"])):
+       for i in range(len(threshold_energy["vibr"][v])):
+           threshold_energy["vibr"][v][i] *=  11600./T 
            
 #threshold_energy["vibrational"][0][0] = 1.75
 #threshold_energy["vibrational"][0][1] = 1.77
